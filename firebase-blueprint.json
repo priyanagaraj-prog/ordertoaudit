@@ -1,0 +1,552 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated ERP user profile and assigned organizational role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["owner", "admin", "salesman", "production_supervisor", "accountant"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "phone": { "type": "string", "maxLength": 25 },
+        "department": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "status", "createdAt", "updatedAt"]
+    },
+    "CompanySetting": {
+      "title": "CompanySetting",
+      "description": "Company profile, GSTIN, state code, and document numbering configuration.",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "legalName": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "gstin": { "type": "string", "minLength": 15, "maxLength": 15, "pattern": "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$" },
+        "stateCode": { "type": "string", "minLength": 2, "maxLength": 2, "pattern": "^[0-9]{2}$" },
+        "stateName": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "address": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 25 },
+        "email": { "type": "string", "maxLength": 160 },
+        "invoicePrefix": { "type": "string", "maxLength": 16 },
+        "orderPrefix": { "type": "string", "maxLength": 16 },
+        "batchPrefix": { "type": "string", "maxLength": 16 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyName", "legalName", "gstin", "stateCode", "stateName", "updatedAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "B2B distributor, supermarket, or wholesale customer account.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "businessName": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "contactName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "phone": { "type": "string", "minLength": 6, "maxLength": 25 },
+        "email": { "type": "string", "maxLength": 160 },
+        "gstin": { "type": "string", "maxLength": 15 },
+        "stateCode": { "type": "string", "minLength": 2, "maxLength": 2, "pattern": "^[0-9]{2}$" },
+        "stateName": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "city": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 300 },
+        "creditLimitPaisa": { "type": "integer" },
+        "outstandingPaisa": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "businessName", "contactName", "phone", "stateCode", "stateName", "city", "creditLimitPaisa", "outstandingPaisa", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Finished packaged food SKU with HSN, GST basis points, specs, imagery, pricing in paisa, and finished goods stock.",
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "category": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "hsnCode": { "type": "string", "minLength": 4, "maxLength": 10 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 24 },
+        "packSize": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "gstBps": { "type": "integer" },
+        "sellingPricePaisa": { "type": "integer" },
+        "standardCostPaisa": { "type": "integer" },
+        "currentStock": { "type": "number" },
+        "reorderLevel": { "type": "number" },
+        "description": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "maxLength": 300 },
+        "shelfLifeDays": { "type": "integer" },
+        "storageTemp": { "type": "string", "maxLength": 80 },
+        "weightGrams": { "type": "integer" },
+        "fssaiLicense": { "type": "string", "maxLength": 40 },
+        "allergens": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sku", "name", "category", "hsnCode", "unit", "packSize", "gstBps", "sellingPricePaisa", "standardCostPaisa", "currentStock", "reorderLevel", "status", "createdAt", "updatedAt"]
+    },
+    "RawMaterial": {
+      "title": "RawMaterial",
+      "description": "Raw agricultural ingredient or spice inventory item.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "category": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 24 },
+        "currentStock": { "type": "number" },
+        "reorderLevel": { "type": "number" },
+        "costPerUnitPaisa": { "type": "integer" },
+        "supplierName": { "type": "string", "maxLength": 140 },
+        "shelfLifeDays": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "name", "category", "unit", "currentStock", "reorderLevel", "costPerUnitPaisa", "status", "createdAt", "updatedAt"]
+    },
+    "PackagingMaterial": {
+      "title": "PackagingMaterial",
+      "description": "Packaging consumables such as pouches, cartons, glass bottles, and master shippers.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "materialType": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 24 },
+        "currentStock": { "type": "number" },
+        "reorderLevel": { "type": "number" },
+        "costPerUnitPaisa": { "type": "integer" },
+        "supplierName": { "type": "string", "maxLength": 140 },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "name", "materialType", "unit", "currentStock", "reorderLevel", "costPerUnitPaisa", "status", "createdAt", "updatedAt"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Approved raw material and packaging supplier master record.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "minLength": 2, "maxLength": 32, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "contactPerson": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "phone": { "type": "string", "minLength": 6, "maxLength": 25 },
+        "email": { "type": "string", "maxLength": 160 },
+        "gstin": { "type": "string", "maxLength": 15 },
+        "stateCode": { "type": "string", "minLength": 2, "maxLength": 2 },
+        "stateName": { "type": "string", "maxLength": 60 },
+        "address": { "type": "string", "maxLength": 300 },
+        "category": { "type": "string", "maxLength": 80 },
+        "leadTimeDays": { "type": "integer" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "name", "contactPerson", "phone", "stateCode", "stateName", "category", "leadTimeDays", "status", "createdAt", "updatedAt"]
+    },
+    "PurchaseRequest": {
+      "title": "PurchaseRequest",
+      "description": "Internal purchase requisition triggered manually, by low stock, or by order material shortfall.",
+      "type": "object",
+      "properties": {
+        "prNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sourceType": { "type": "string", "enum": ["manual", "order_shortage", "low_stock"] },
+        "linkedOrderId": { "type": "string", "maxLength": 128 },
+        "linkedOrderNumber": { "type": "string", "maxLength": 40 },
+        "itemCategory": { "type": "string", "enum": ["raw_material", "packaging"] },
+        "itemId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "itemCode": { "type": "string", "maxLength": 40 },
+        "itemName": { "type": "string", "maxLength": 150 },
+        "unit": { "type": "string", "maxLength": 24 },
+        "requestedQty": { "type": "number" },
+        "estimatedUnitCostPaisa": { "type": "integer" },
+        "status": { "type": "string", "enum": ["pending", "approved", "converted_to_po", "rejected"] },
+        "linkedPoId": { "type": "string", "maxLength": 128 },
+        "requestedBy": { "type": "string", "maxLength": 128 },
+        "notes": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["prNumber", "sourceType", "itemCategory", "itemId", "itemCode", "itemName", "unit", "requestedQty", "estimatedUnitCostPaisa", "status", "requestedBy", "createdAt", "updatedAt"]
+    },
+    "Bom": {
+      "title": "Bom",
+      "description": "Bill of Materials linking a finished SKU to standard raw materials, packaging, and overhead per batch.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productSku": { "type": "string", "maxLength": 32 },
+        "productName": { "type": "string", "maxLength": 150 },
+        "batchYieldQty": { "type": "number" },
+        "batchUnit": { "type": "string", "maxLength": 24 },
+        "standardLaborCostPaisa": { "type": "integer" },
+        "standardOverheadPaisa": { "type": "integer" },
+        "rawMaterialItems": { "type": "array" },
+        "packagingItems": { "type": "array" },
+        "notes": { "type": "string", "maxLength": 400 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "productSku", "productName", "batchYieldQty", "batchUnit", "standardLaborCostPaisa", "standardOverheadPaisa", "rawMaterialItems", "packagingItems", "createdAt", "updatedAt"]
+    },
+    "Purchase": {
+      "title": "Purchase",
+      "description": "Procurement order and inward GRN receipt for raw materials or packaging.",
+      "type": "object",
+      "properties": {
+        "purchaseNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "supplierId": { "type": "string", "maxLength": 128 },
+        "supplierName": { "type": "string", "minLength": 2, "maxLength": 150 },
+        "supplierGstin": { "type": "string", "maxLength": 15 },
+        "invoiceRef": { "type": "string", "maxLength": 60 },
+        "grnNumber": { "type": "string", "maxLength": 40 },
+        "batchNumber": { "type": "string", "maxLength": 40 },
+        "mfgDate": { "type": "string", "maxLength": 20 },
+        "expiryDate": { "type": "string", "maxLength": 20 },
+        "linkedPrId": { "type": "string", "maxLength": 128 },
+        "itemCategory": { "type": "string", "enum": ["raw_material", "packaging"] },
+        "items": { "type": "array" },
+        "subtotalPaisa": { "type": "integer" },
+        "totalTaxPaisa": { "type": "integer" },
+        "totalAmountPaisa": { "type": "integer" },
+        "status": { "type": "string", "enum": ["ordered", "received"] },
+        "receivedBy": { "type": "string", "maxLength": 128 },
+        "receivedAt": { "type": "string", "maxLength": 60 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["purchaseNumber", "supplierName", "itemCategory", "items", "subtotalPaisa", "totalTaxPaisa", "totalAmountPaisa", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "ProductionRun": {
+      "title": "ProductionRun",
+      "description": "Batch production run tracking planned vs actual output, WIP stage, wastage, and standard vs actual cost variance.",
+      "type": "object",
+      "properties": {
+        "batchNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "productSku": { "type": "string", "maxLength": 32 },
+        "productName": { "type": "string", "maxLength": 150 },
+        "bomId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "plannedQty": { "type": "number" },
+        "actualOutputQty": { "type": "number" },
+        "wastageQty": { "type": "number" },
+        "wastageReason": { "type": "string", "maxLength": 240 },
+        "rawMaterialsConsumed": { "type": "array" },
+        "packagingConsumed": { "type": "array" },
+        "standardCostPaisa": { "type": "integer" },
+        "actualMaterialCostPaisa": { "type": "integer" },
+        "laborOverheadPaisa": { "type": "integer" },
+        "actualTotalCostPaisa": { "type": "integer" },
+        "variancePaisa": { "type": "integer" },
+        "status": { "type": "string", "enum": ["planned", "in_progress", "completed"] },
+        "wipStage": { "type": "string", "enum": ["mixing", "cooking", "cooling", "packaging", "qc_pending", "completed"] },
+        "mfgDate": { "type": "string", "maxLength": 20 },
+        "expiryDate": { "type": "string", "maxLength": 20 },
+        "qcStatus": { "type": "string", "enum": ["pending", "passed", "hold", "rejected"] },
+        "linkedOrderId": { "type": "string", "maxLength": 128 },
+        "linkedOrderNumber": { "type": "string", "maxLength": 40 },
+        "supervisorUid": { "type": "string", "maxLength": 128 },
+        "supervisorName": { "type": "string", "maxLength": 120 },
+        "startedAt": { "type": "string", "maxLength": 60 },
+        "completedAt": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["batchNumber", "productId", "productSku", "productName", "bomId", "plannedQty", "actualOutputQty", "wastageQty", "rawMaterialsConsumed", "packagingConsumed", "standardCostPaisa", "actualMaterialCostPaisa", "laborOverheadPaisa", "actualTotalCostPaisa", "variancePaisa", "status", "supervisorUid", "createdAt", "updatedAt"]
+    },
+    "InventoryBatch": {
+      "title": "InventoryBatch",
+      "description": "Batch/lot tracking with manufacturing date, expiry date, QC disposition, and FEFO remaining quantity.",
+      "type": "object",
+      "properties": {
+        "itemType": { "type": "string", "enum": ["raw_material", "packaging", "finished_good"] },
+        "itemId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "itemCode": { "type": "string", "maxLength": 40 },
+        "itemName": { "type": "string", "maxLength": 150 },
+        "batchNumber": { "type": "string", "minLength": 2, "maxLength": 50 },
+        "lotCode": { "type": "string", "maxLength": 50 },
+        "mfgDate": { "type": "string", "maxLength": 20 },
+        "expiryDate": { "type": "string", "maxLength": 20 },
+        "initialQty": { "type": "number" },
+        "remainingQty": { "type": "number" },
+        "unit": { "type": "string", "maxLength": 24 },
+        "unitCostPaisa": { "type": "integer" },
+        "qcStatus": { "type": "string", "enum": ["pending", "passed", "hold", "rejected"] },
+        "sourceType": { "type": "string", "enum": ["opening", "grn", "production"] },
+        "sourceId": { "type": "string", "maxLength": 128 },
+        "sourceRef": { "type": "string", "maxLength": 60 },
+        "supplierName": { "type": "string", "maxLength": 140 },
+        "rawBatchRefs": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemType", "itemId", "itemCode", "itemName", "batchNumber", "lotCode", "mfgDate", "expiryDate", "initialQty", "remainingQty", "unit", "unitCostPaisa", "qcStatus", "sourceType", "createdAt", "updatedAt"]
+    },
+    "QcInspection": {
+      "title": "QcInspection",
+      "description": "Append-only food safety and quality control inspection record for raw materials and finished batches.",
+      "type": "object",
+      "properties": {
+        "qcNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "inspectionType": { "type": "string", "enum": ["raw_material", "finished_good"] },
+        "itemId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "itemCode": { "type": "string", "maxLength": 40 },
+        "itemName": { "type": "string", "maxLength": 150 },
+        "batchId": { "type": "string", "maxLength": 128 },
+        "batchNumber": { "type": "string", "maxLength": 50 },
+        "inspectedQty": { "type": "number" },
+        "passedQty": { "type": "number" },
+        "rejectedQty": { "type": "number" },
+        "status": { "type": "string", "enum": ["passed", "hold", "rejected"] },
+        "parameters": { "type": "array" },
+        "inspectorName": { "type": "string", "maxLength": 100 },
+        "remarks": { "type": "string", "maxLength": 300 },
+        "inspectedDate": { "type": "string", "maxLength": 20 },
+        "refType": { "type": "string", "maxLength": 40 },
+        "refId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["qcNumber", "inspectionType", "itemId", "itemCode", "itemName", "batchNumber", "inspectedQty", "passedQty", "rejectedQty", "status", "parameters", "inspectorName", "inspectedDate", "createdAt"]
+    },
+    "SalesOrder": {
+      "title": "SalesOrder",
+      "description": "B2B customer or buyer portal sales order with integer-paisa GST breakdown and fulfillment workflow.",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerName": { "type": "string", "maxLength": 150 },
+        "customerStateCode": { "type": "string", "minLength": 2, "maxLength": 2 },
+        "salesmanUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "salesmanName": { "type": "string", "maxLength": 120 },
+        "source": { "type": "string", "enum": ["merchant", "buyer_portal"] },
+        "deliveryAddress": { "type": "string", "maxLength": 300 },
+        "contactPhone": { "type": "string", "maxLength": 30 },
+        "items": { "type": "array" },
+        "subtotalPaisa": { "type": "integer" },
+        "cgstPaisa": { "type": "integer" },
+        "sgstPaisa": { "type": "integer" },
+        "igstPaisa": { "type": "integer" },
+        "totalTaxPaisa": { "type": "integer" },
+        "totalAmountPaisa": { "type": "integer" },
+        "status": { "type": "string", "enum": ["pending", "awaiting_approval", "approved", "confirmed", "in_production", "ready_for_dispatch", "invoiced", "dispatched", "delivered", "rejected", "cancelled"] },
+        "rejectionReason": { "type": "string", "maxLength": 240 },
+        "linkedProductionRunId": { "type": "string", "maxLength": 128 },
+        "allocatedBatches": { "type": "array" },
+        "notes": { "type": "string", "maxLength": 300 },
+        "orderDate": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderNumber", "customerId", "customerName", "customerStateCode", "salesmanUid", "salesmanName", "items", "subtotalPaisa", "cgstPaisa", "sgstPaisa", "igstPaisa", "totalTaxPaisa", "totalAmountPaisa", "status", "orderDate", "createdAt", "updatedAt"]
+    },
+    "GstInvoice": {
+      "title": "GstInvoice",
+      "description": "Tax invoice with CGST/SGST or IGST split, paid tracking, and dispatch linkage.",
+      "type": "object",
+      "properties": {
+        "invoiceNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderNumber": { "type": "string", "maxLength": 40 },
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerName": { "type": "string", "maxLength": 150 },
+        "customerGstin": { "type": "string", "maxLength": 15 },
+        "customerStateCode": { "type": "string", "minLength": 2, "maxLength": 2 },
+        "companyStateCode": { "type": "string", "minLength": 2, "maxLength": 2 },
+        "isInterState": { "type": "boolean" },
+        "items": { "type": "array" },
+        "subtotalPaisa": { "type": "integer" },
+        "cgstPaisa": { "type": "integer" },
+        "sgstPaisa": { "type": "integer" },
+        "igstPaisa": { "type": "integer" },
+        "totalTaxPaisa": { "type": "integer" },
+        "totalAmountPaisa": { "type": "integer" },
+        "paidAmountPaisa": { "type": "integer" },
+        "balanceDuePaisa": { "type": "integer" },
+        "paymentStatus": { "type": "string", "enum": ["unpaid", "partial", "paid"] },
+        "dispatchStatus": { "type": "string", "enum": ["pending", "dispatched"] },
+        "invoiceDate": { "type": "string", "maxLength": 40 },
+        "dueDate": { "type": "string", "maxLength": 40 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["invoiceNumber", "orderId", "orderNumber", "customerId", "customerName", "customerStateCode", "companyStateCode", "isInterState", "items", "subtotalPaisa", "cgstPaisa", "sgstPaisa", "igstPaisa", "totalTaxPaisa", "totalAmountPaisa", "paidAmountPaisa", "balanceDuePaisa", "paymentStatus", "dispatchStatus", "invoiceDate", "dueDate", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Dispatch": {
+      "title": "Dispatch",
+      "description": "Finished goods dispatch record tied to a GST invoice and FEFO batch allocations.",
+      "type": "object",
+      "properties": {
+        "dispatchNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "invoiceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "invoiceNumber": { "type": "string", "maxLength": 40 },
+        "orderId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 40 },
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 150 },
+        "transporterName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "vehicleNumber": { "type": "string", "maxLength": 30 },
+        "lrNumber": { "type": "string", "maxLength": 50 },
+        "dispatchedItems": { "type": "array" },
+        "status": { "type": "string", "enum": ["packed", "dispatched", "delivered"] },
+        "dispatchedBy": { "type": "string", "maxLength": 128 },
+        "dispatchedAt": { "type": "string", "maxLength": 60 },
+        "deliveredAt": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dispatchNumber", "invoiceId", "invoiceNumber", "orderId", "orderNumber", "customerId", "customerName", "transporterName", "dispatchedItems", "status", "dispatchedBy", "createdAt", "updatedAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Customer payment receipt applied against a GST invoice.",
+      "type": "object",
+      "properties": {
+        "receiptNumber": { "type": "string", "minLength": 3, "maxLength": 40, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "invoiceId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "invoiceNumber": { "type": "string", "maxLength": 40 },
+        "customerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "customerName": { "type": "string", "maxLength": 150 },
+        "amountPaisa": { "type": "integer" },
+        "paymentMode": { "type": "string", "enum": ["NEFT", "RTGS", "UPI", "Cheque", "Cash"] },
+        "referenceNumber": { "type": "string", "maxLength": 80 },
+        "paymentDate": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 240 },
+        "recordedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["receiptNumber", "invoiceId", "invoiceNumber", "customerId", "customerName", "amountPaisa", "paymentMode", "paymentDate", "recordedBy", "createdAt"]
+    },
+    "StockMovement": {
+      "title": "StockMovement",
+      "description": "Immutable, traceable inventory ledger entry created transactionally on every stock mutation.",
+      "type": "object",
+      "properties": {
+        "itemType": { "type": "string", "enum": ["raw_material", "packaging", "finished_good"] },
+        "itemId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "itemCode": { "type": "string", "maxLength": 40 },
+        "itemName": { "type": "string", "maxLength": 150 },
+        "movementType": { "type": "string", "enum": ["PURCHASE_IN", "PRODUCTION_CONSUME", "PRODUCTION_OUT", "PRODUCTION_WASTAGE", "DISPATCH_OUT", "QC_REJECT", "ADJUSTMENT"] },
+        "unit": { "type": "string", "maxLength": 24 },
+        "beforeQty": { "type": "number" },
+        "changeQty": { "type": "number" },
+        "afterQty": { "type": "number" },
+        "unitCostPaisa": { "type": "integer" },
+        "totalValuePaisa": { "type": "integer" },
+        "refType": { "type": "string", "maxLength": 40 },
+        "refId": { "type": "string", "maxLength": 128 },
+        "refNumber": { "type": "string", "maxLength": 60 },
+        "batchNumber": { "type": "string", "maxLength": 50 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemType", "itemId", "itemCode", "itemName", "movementType", "unit", "beforeQty", "changeQty", "afterQty", "unitCostPaisa", "totalValuePaisa", "refType", "refId", "refNumber", "actorUid", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable audit trail for financial, stock, QC, order, and role actions.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorRole": { "type": "string", "maxLength": 40 },
+        "action": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "entityType": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "actorEmail", "actorRole", "action", "entityType", "entityId", "summary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "ERP user profiles and role assignments"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/CompanySetting" },
+      "description": "Company GSTIN, legal address, and numbering prefixes"
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/Customer" },
+      "description": "B2B customer accounts and receivables balances"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Finished packaged food SKUs and current stock"
+    },
+    "/raw_materials/{materialId}": {
+      "schema": { "$ref": "#/entities/RawMaterial" },
+      "description": "Raw ingredient inventory and unit costs"
+    },
+    "/packaging_materials/{packagingId}": {
+      "schema": { "$ref": "#/entities/PackagingMaterial" },
+      "description": "Packaging consumables inventory and unit costs"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": { "$ref": "#/entities/Supplier" },
+      "description": "Approved raw material and packaging suppliers"
+    },
+    "/purchase_requests/{prId}": {
+      "schema": { "$ref": "#/entities/PurchaseRequest" },
+      "description": "Purchase requests generated from low stock or order shortages"
+    },
+    "/boms/{bomId}": {
+      "schema": { "$ref": "#/entities/Bom" },
+      "description": "Bills of Materials for finished food SKUs"
+    },
+    "/purchases/{purchaseId}": {
+      "schema": { "$ref": "#/entities/Purchase" },
+      "description": "Raw material and packaging purchases & GRN receipts"
+    },
+    "/production_runs/{runId}": {
+      "schema": { "$ref": "#/entities/ProductionRun" },
+      "description": "Batch production runs, WIP stages, wastage, and cost variance"
+    },
+    "/inventory_batches/{batchId}": {
+      "schema": { "$ref": "#/entities/InventoryBatch" },
+      "description": "Batch-wise food manufacturing lots with manufacturing/expiry dates and FEFO balances"
+    },
+    "/qc_inspections/{qcId}": {
+      "schema": { "$ref": "#/entities/QcInspection" },
+      "description": "Append-only raw material and finished goods quality control inspections"
+    },
+    "/sales_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/SalesOrder" },
+      "description": "B2B and buyer portal sales orders"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": { "$ref": "#/entities/GstInvoice" },
+      "description": "GST tax invoices linked to sales orders"
+    },
+    "/dispatches/{dispatchId}": {
+      "schema": { "$ref": "#/entities/Dispatch" },
+      "description": "Goods dispatch records linked to GST invoices"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Customer payment receipts against GST invoices"
+    },
+    "/stock_movements/{movementId}": {
+      "schema": { "$ref": "#/entities/StockMovement" },
+      "description": "Append-only traceable stock movement ledger"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Append-only audit trail for compliance"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Order-to-Audit ERP",
+  "description": "Integrated Order-to-Audit ERP for South Indian packaged food manufacturing connecting sales, GST billing, inventory, BOM, production, costing, payments, and monthly audit reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

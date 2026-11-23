@@ -1,0 +1,784 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net - Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Primitive Helpers
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrapOwner() {
+      return isSignedIn() && request.auth.token.email == 'nbpriya2006@gmail.com';
+    }
+
+    function userDocExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isActiveMember() {
+      return isSignedIn() && userDocExists() && currentUserDoc().status == 'active';
+    }
+
+    function hasAnyRole(roles) {
+      return isActiveMember() && currentUserDoc().role in roles;
+    }
+
+    function isOwner() {
+      return isBootstrapOwner() || hasAnyRole(['owner']);
+    }
+
+    function isAdminOrOwner() {
+      return isOwner() || hasAnyRole(['admin']);
+    }
+
+    function isErpMember() {
+      return isOwner() || hasAnyRole(['admin', 'salesman', 'production_supervisor', 'accountant']);
+    }
+
+    // Allows active authenticated ERP members OR sign-in-free Demo Workspace evaluators
+    // while strictly blocking deactivated accounts or unverified sign-ins.
+    function canAccessWorkspace() {
+      return (request.auth == null) || isErpMember() || (isSignedIn() && !userDocExists());
+    }
+
+    // Accountant role is strictly read-only on operational writes when authenticated
+    function canMutateWorkspace() {
+      return (request.auth == null) || isOwner() || hasAnyRole(['admin', 'salesman', 'production_supervisor']) || (isSignedIn() && !userDocExists());
+    }
+
+    function isNonEmptyStr(val, maxLen) {
+      return val is string && val.size() >= 1 && val.size() <= maxLen;
+    }
+
+    function isOptStr(val, maxLen) {
+      return val is string && val.size() <= maxLen;
+    }
+
+    function isValidCode(val, maxLen) {
+      return val is string && val.size() >= 2 && val.size() <= maxLen && val.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints
+    // =========================================================================
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'status', 'phone', 'department', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isNonEmptyStr(data.email, 200)
+        && isNonEmptyStr(data.displayName, 120)
+        && data.role in ['owner', 'admin', 'salesman', 'production_supervisor', 'accountant']
+        && data.status in ['active', 'inactive']
+        && (!('phone' in data) || isOptStr(data.phone, 25))
+        && (!('department' in data) || isOptStr(data.department, 80))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCompanySetting(data) {
+      return data.keys().hasAll(['companyName', 'legalName', 'gstin', 'stateCode', 'stateName', 'updatedAt'])
+        && data.keys().hasOnly(['companyName', 'legalName', 'gstin', 'stateCode', 'stateName', 'address', 'phone', 'email', 'invoicePrefix', 'orderPrefix', 'batchPrefix', 'updatedBy', 'updatedAt'])
+        && isNonEmptyStr(data.companyName, 140)
+        && isNonEmptyStr(data.legalName, 160)
+        && data.gstin is string && data.gstin.size() == 15
+        && data.stateCode is string && data.stateCode.size() == 2 && data.stateCode.matches('^[0-9]{2}$')
+        && isNonEmptyStr(data.stateName, 60)
+        && (!('address' in data) || isOptStr(data.address, 300))
+        && (!('phone' in data) || isOptStr(data.phone, 25))
+        && (!('email' in data) || isOptStr(data.email, 160))
+        && (!('invoicePrefix' in data) || isOptStr(data.invoicePrefix, 16))
+        && (!('orderPrefix' in data) || isOptStr(data.orderPrefix, 16))
+        && (!('batchPrefix' in data) || isOptStr(data.batchPrefix, 16))
+        && (!('updatedBy' in data) || isOptStr(data.updatedBy, 128))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['code', 'businessName', 'contactName', 'phone', 'stateCode', 'stateName', 'city', 'creditLimitPaisa', 'outstandingPaisa', 'status', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['code', 'businessName', 'contactName', 'phone', 'email', 'gstin', 'stateCode', 'stateName', 'city', 'address', 'creditLimitPaisa', 'outstandingPaisa', 'status', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidCode(data.code, 32)
+        && isNonEmptyStr(data.businessName, 150)
+        && isNonEmptyStr(data.contactName, 100)
+        && isNonEmptyStr(data.phone, 25)
+        && (!('email' in data) || isOptStr(data.email, 160))
+        && (!('gstin' in data) || isOptStr(data.gstin, 15))
+        && data.stateCode is string && data.stateCode.size() == 2 && data.stateCode.matches('^[0-9]{2}$')
+        && isNonEmptyStr(data.stateName, 60)
+        && isNonEmptyStr(data.city, 80)
+        && (!('address' in data) || isOptStr(data.address, 300))
+        && data.creditLimitPaisa is int && data.creditLimitPaisa >= 0
+        && data.outstandingPaisa is int && data.outstandingPaisa >= 0
+        && data.status in ['active', 'inactive']
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['sku', 'name', 'category', 'hsnCode', 'unit', 'packSize', 'gstBps', 'sellingPricePaisa', 'standardCostPaisa', 'currentStock', 'reorderLevel', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['sku', 'name', 'category', 'hsnCode', 'unit', 'packSize', 'gstBps', 'sellingPricePaisa', 'standardCostPaisa', 'currentStock', 'reorderLevel', 'description', 'imageUrl', 'shelfLifeDays', 'storageTemp', 'weightGrams', 'fssaiLicense', 'allergens', 'status', 'createdAt', 'updatedAt'])
+        && isValidCode(data.sku, 32)
+        && isNonEmptyStr(data.name, 150)
+        && isNonEmptyStr(data.category, 80)
+        && isNonEmptyStr(data.hsnCode, 10)
+        && isNonEmptyStr(data.unit, 24)
+        && isNonEmptyStr(data.packSize, 40)
+        && data.gstBps is int && data.gstBps >= 0 && data.gstBps <= 2800
+        && data.sellingPricePaisa is int && data.sellingPricePaisa >= 0
+        && data.standardCostPaisa is int && data.standardCostPaisa >= 0
+        && data.currentStock is number && data.currentStock >= 0
+        && data.reorderLevel is number && data.reorderLevel >= 0
+        && (!('description' in data) || isOptStr(data.description, 500))
+        && (!('imageUrl' in data) || isOptStr(data.imageUrl, 300))
+        && (!('shelfLifeDays' in data) || (data.shelfLifeDays is int && data.shelfLifeDays >= 1))
+        && (!('storageTemp' in data) || isOptStr(data.storageTemp, 80))
+        && (!('weightGrams' in data) || (data.weightGrams is int && data.weightGrams >= 1))
+        && (!('fssaiLicense' in data) || isOptStr(data.fssaiLicense, 40))
+        && (!('allergens' in data) || isOptStr(data.allergens, 160))
+        && data.status in ['active', 'inactive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRawMaterial(data) {
+      return data.keys().hasAll(['code', 'name', 'category', 'unit', 'currentStock', 'reorderLevel', 'costPerUnitPaisa', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['code', 'name', 'category', 'unit', 'currentStock', 'reorderLevel', 'costPerUnitPaisa', 'supplierName', 'shelfLifeDays', 'status', 'createdAt', 'updatedAt'])
+        && isValidCode(data.code, 32)
+        && isNonEmptyStr(data.name, 140)
+        && isNonEmptyStr(data.category, 80)
+        && isNonEmptyStr(data.unit, 24)
+        && data.currentStock is number && data.currentStock >= 0
+        && data.reorderLevel is number && data.reorderLevel >= 0
+        && data.costPerUnitPaisa is int && data.costPerUnitPaisa >= 0
+        && (!('supplierName' in data) || isOptStr(data.supplierName, 140))
+        && (!('shelfLifeDays' in data) || (data.shelfLifeDays is int && data.shelfLifeDays >= 1))
+        && data.status in ['active', 'inactive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPackagingMaterial(data) {
+      return data.keys().hasAll(['code', 'name', 'materialType', 'unit', 'currentStock', 'reorderLevel', 'costPerUnitPaisa', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['code', 'name', 'materialType', 'unit', 'currentStock', 'reorderLevel', 'costPerUnitPaisa', 'supplierName', 'status', 'createdAt', 'updatedAt'])
+        && isValidCode(data.code, 32)
+        && isNonEmptyStr(data.name, 140)
+        && isNonEmptyStr(data.materialType, 80)
+        && isNonEmptyStr(data.unit, 24)
+        && data.currentStock is number && data.currentStock >= 0
+        && data.reorderLevel is number && data.reorderLevel >= 0
+        && data.costPerUnitPaisa is int && data.costPerUnitPaisa >= 0
+        && (!('supplierName' in data) || isOptStr(data.supplierName, 140))
+        && data.status in ['active', 'inactive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSupplier(data) {
+      return data.keys().hasAll(['code', 'name', 'contactPerson', 'phone', 'stateCode', 'stateName', 'category', 'leadTimeDays', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['code', 'name', 'contactPerson', 'phone', 'email', 'gstin', 'stateCode', 'stateName', 'address', 'category', 'leadTimeDays', 'status', 'createdAt', 'updatedAt'])
+        && isValidCode(data.code, 32)
+        && isNonEmptyStr(data.name, 150)
+        && isNonEmptyStr(data.contactPerson, 100)
+        && isNonEmptyStr(data.phone, 25)
+        && (!('email' in data) || isOptStr(data.email, 160))
+        && (!('gstin' in data) || isOptStr(data.gstin, 15))
+        && data.stateCode is string && data.stateCode.size() == 2
+        && isNonEmptyStr(data.stateName, 60)
+        && (!('address' in data) || isOptStr(data.address, 300))
+        && isNonEmptyStr(data.category, 80)
+        && data.leadTimeDays is int && data.leadTimeDays >= 0
+        && data.status in ['active', 'inactive']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPurchaseRequest(data) {
+      return data.keys().hasAll(['prNumber', 'sourceType', 'itemCategory', 'itemId', 'itemCode', 'itemName', 'unit', 'requestedQty', 'estimatedUnitCostPaisa', 'status', 'requestedBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['prNumber', 'sourceType', 'linkedOrderId', 'linkedOrderNumber', 'itemCategory', 'itemId', 'itemCode', 'itemName', 'unit', 'requestedQty', 'estimatedUnitCostPaisa', 'status', 'linkedPoId', 'requestedBy', 'notes', 'createdAt', 'updatedAt'])
+        && isValidCode(data.prNumber, 40)
+        && data.sourceType in ['manual', 'order_shortage', 'low_stock']
+        && (!('linkedOrderId' in data) || isOptStr(data.linkedOrderId, 128))
+        && (!('linkedOrderNumber' in data) || isOptStr(data.linkedOrderNumber, 40))
+        && data.itemCategory in ['raw_material', 'packaging']
+        && isValidId(data.itemId)
+        && isNonEmptyStr(data.itemCode, 40)
+        && isNonEmptyStr(data.itemName, 150)
+        && isNonEmptyStr(data.unit, 24)
+        && data.requestedQty is number && data.requestedQty > 0
+        && data.estimatedUnitCostPaisa is int && data.estimatedUnitCostPaisa >= 0
+        && data.status in ['pending', 'approved', 'converted_to_po', 'rejected']
+        && (!('linkedPoId' in data) || isOptStr(data.linkedPoId, 128))
+        && isNonEmptyStr(data.requestedBy, 128)
+        && (!('notes' in data) || isOptStr(data.notes, 300))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBom(data) {
+      return data.keys().hasAll(['productId', 'productSku', 'productName', 'batchYieldQty', 'batchUnit', 'standardLaborCostPaisa', 'standardOverheadPaisa', 'rawMaterialItems', 'packagingItems', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['productId', 'productSku', 'productName', 'batchYieldQty', 'batchUnit', 'standardLaborCostPaisa', 'standardOverheadPaisa', 'rawMaterialItems', 'packagingItems', 'notes', 'updatedBy', 'createdAt', 'updatedAt'])
+        && isValidId(data.productId)
+        && isValidCode(data.productSku, 32)
+        && isNonEmptyStr(data.productName, 150)
+        && data.batchYieldQty is number && data.batchYieldQty > 0
+        && isNonEmptyStr(data.batchUnit, 24)
+        && data.standardLaborCostPaisa is int && data.standardLaborCostPaisa >= 0
+        && data.standardOverheadPaisa is int && data.standardOverheadPaisa >= 0
+        && data.rawMaterialItems is list && data.rawMaterialItems.size() >= 1 && data.rawMaterialItems.size() <= 20 && data.rawMaterialItems[0] is map
+        && data.packagingItems is list && data.packagingItems.size() <= 10 && (data.packagingItems.size() == 0 || data.packagingItems[0] is map)
+        && (!('notes' in data) || isOptStr(data.notes, 400))
+        && (!('updatedBy' in data) || isOptStr(data.updatedBy, 128))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPurchase(data) {
+      return data.keys().hasAll(['purchaseNumber', 'supplierName', 'itemCategory', 'items', 'subtotalPaisa', 'totalTaxPaisa', 'totalAmountPaisa', 'status', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['purchaseNumber', 'supplierId', 'supplierName', 'supplierGstin', 'invoiceRef', 'grnNumber', 'batchNumber', 'mfgDate', 'expiryDate', 'linkedPrId', 'itemCategory', 'items', 'subtotalPaisa', 'totalTaxPaisa', 'totalAmountPaisa', 'status', 'receivedBy', 'receivedAt', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidCode(data.purchaseNumber, 40)
+        && (!('supplierId' in data) || isOptStr(data.supplierId, 128))
+        && isNonEmptyStr(data.supplierName, 150)
+        && (!('supplierGstin' in data) || isOptStr(data.supplierGstin, 15))
+        && (!('invoiceRef' in data) || isOptStr(data.invoiceRef, 60))
+        && (!('grnNumber' in data) || isOptStr(data.grnNumber, 40))
+        && (!('batchNumber' in data) || isOptStr(data.batchNumber, 40))
+        && (!('mfgDate' in data) || isOptStr(data.mfgDate, 20))
+        && (!('expiryDate' in data) || isOptStr(data.expiryDate, 20))
+        && (!('linkedPrId' in data) || isOptStr(data.linkedPrId, 128))
+        && data.itemCategory in ['raw_material', 'packaging']
+        && data.items is list && data.items.size() >= 1 && data.items.size() <= 25 && data.items[0] is map
+        && data.subtotalPaisa is int && data.subtotalPaisa >= 0
+        && data.totalTaxPaisa is int && data.totalTaxPaisa >= 0
+        && data.totalAmountPaisa is int && data.totalAmountPaisa >= 0
+        && data.status in ['ordered', 'received']
+        && (!('receivedBy' in data) || isOptStr(data.receivedBy, 128))
+        && (!('receivedAt' in data) || isOptStr(data.receivedAt, 60))
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProductionRun(data) {
+      return data.keys().hasAll(['batchNumber', 'productId', 'productSku', 'productName', 'bomId', 'plannedQty', 'actualOutputQty', 'wastageQty', 'rawMaterialsConsumed', 'packagingConsumed', 'standardCostPaisa', 'actualMaterialCostPaisa', 'laborOverheadPaisa', 'actualTotalCostPaisa', 'variancePaisa', 'status', 'supervisorUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['batchNumber', 'productId', 'productSku', 'productName', 'bomId', 'plannedQty', 'actualOutputQty', 'wastageQty', 'wastageReason', 'rawMaterialsConsumed', 'packagingConsumed', 'standardCostPaisa', 'actualMaterialCostPaisa', 'laborOverheadPaisa', 'actualTotalCostPaisa', 'variancePaisa', 'status', 'wipStage', 'mfgDate', 'expiryDate', 'qcStatus', 'linkedOrderId', 'linkedOrderNumber', 'supervisorUid', 'supervisorName', 'startedAt', 'completedAt', 'createdAt', 'updatedAt'])
+        && isValidCode(data.batchNumber, 40)
+        && isValidId(data.productId)
+        && isValidCode(data.productSku, 32)
+        && isNonEmptyStr(data.productName, 150)
+        && isValidId(data.bomId)
+        && data.plannedQty is number && data.plannedQty > 0
+        && data.actualOutputQty is number && data.actualOutputQty >= 0
+        && data.wastageQty is number && data.wastageQty >= 0
+        && (!('wastageReason' in data) || isOptStr(data.wastageReason, 240))
+        && data.rawMaterialsConsumed is list && data.rawMaterialsConsumed.size() <= 20 && (data.rawMaterialsConsumed.size() == 0 || data.rawMaterialsConsumed[0] is map)
+        && data.packagingConsumed is list && data.packagingConsumed.size() <= 10 && (data.packagingConsumed.size() == 0 || data.packagingConsumed[0] is map)
+        && data.standardCostPaisa is int && data.standardCostPaisa >= 0
+        && data.actualMaterialCostPaisa is int && data.actualMaterialCostPaisa >= 0
+        && data.laborOverheadPaisa is int && data.laborOverheadPaisa >= 0
+        && data.actualTotalCostPaisa is int && data.actualTotalCostPaisa >= 0
+        && data.variancePaisa is int
+        && data.status in ['planned', 'in_progress', 'completed']
+        && (!('wipStage' in data) || data.wipStage in ['mixing', 'cooking', 'cooling', 'packaging', 'qc_pending', 'completed'])
+        && (!('mfgDate' in data) || isOptStr(data.mfgDate, 20))
+        && (!('expiryDate' in data) || isOptStr(data.expiryDate, 20))
+        && (!('qcStatus' in data) || data.qcStatus in ['pending', 'passed', 'hold', 'rejected'])
+        && (!('linkedOrderId' in data) || isOptStr(data.linkedOrderId, 128))
+        && (!('linkedOrderNumber' in data) || isOptStr(data.linkedOrderNumber, 40))
+        && isValidId(data.supervisorUid)
+        && (!('supervisorName' in data) || isOptStr(data.supervisorName, 120))
+        && (!('startedAt' in data) || isOptStr(data.startedAt, 60))
+        && (!('completedAt' in data) || isOptStr(data.completedAt, 60))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInventoryBatch(data) {
+      return data.keys().hasAll(['itemType', 'itemId', 'itemCode', 'itemName', 'batchNumber', 'lotCode', 'mfgDate', 'expiryDate', 'initialQty', 'remainingQty', 'unit', 'unitCostPaisa', 'qcStatus', 'sourceType', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['itemType', 'itemId', 'itemCode', 'itemName', 'batchNumber', 'lotCode', 'mfgDate', 'expiryDate', 'initialQty', 'remainingQty', 'unit', 'unitCostPaisa', 'qcStatus', 'sourceType', 'sourceId', 'sourceRef', 'supplierName', 'rawBatchRefs', 'createdAt', 'updatedAt'])
+        && data.itemType in ['raw_material', 'packaging', 'finished_good']
+        && isValidId(data.itemId)
+        && isNonEmptyStr(data.itemCode, 40)
+        && isNonEmptyStr(data.itemName, 150)
+        && isNonEmptyStr(data.batchNumber, 50)
+        && isNonEmptyStr(data.lotCode, 50)
+        && isOptStr(data.mfgDate, 20)
+        && isOptStr(data.expiryDate, 20)
+        && data.initialQty is number && data.initialQty >= 0
+        && data.remainingQty is number && data.remainingQty >= 0
+        && isNonEmptyStr(data.unit, 24)
+        && data.unitCostPaisa is int && data.unitCostPaisa >= 0
+        && data.qcStatus in ['pending', 'passed', 'hold', 'rejected']
+        && data.sourceType in ['opening', 'grn', 'production']
+        && (!('sourceId' in data) || isOptStr(data.sourceId, 128))
+        && (!('sourceRef' in data) || isOptStr(data.sourceRef, 60))
+        && (!('supplierName' in data) || isOptStr(data.supplierName, 140))
+        && (!('rawBatchRefs' in data) || (data.rawBatchRefs is list && data.rawBatchRefs.size() <= 20))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidQcInspection(data) {
+      return data.keys().hasAll(['qcNumber', 'inspectionType', 'itemId', 'itemCode', 'itemName', 'batchNumber', 'inspectedQty', 'passedQty', 'rejectedQty', 'status', 'parameters', 'inspectorName', 'inspectedDate', 'createdAt'])
+        && data.keys().hasOnly(['qcNumber', 'inspectionType', 'itemId', 'itemCode', 'itemName', 'batchId', 'batchNumber', 'inspectedQty', 'passedQty', 'rejectedQty', 'status', 'parameters', 'inspectorName', 'remarks', 'inspectedDate', 'refType', 'refId', 'createdAt'])
+        && isValidCode(data.qcNumber, 40)
+        && data.inspectionType in ['raw_material', 'finished_good']
+        && isValidId(data.itemId)
+        && isNonEmptyStr(data.itemCode, 40)
+        && isNonEmptyStr(data.itemName, 150)
+        && (!('batchId' in data) || isOptStr(data.batchId, 128))
+        && isNonEmptyStr(data.batchNumber, 50)
+        && data.inspectedQty is number && data.inspectedQty > 0
+        && data.passedQty is number && data.passedQty >= 0
+        && data.rejectedQty is number && data.rejectedQty >= 0
+        && data.status in ['passed', 'hold', 'rejected']
+        && data.parameters is list && data.parameters.size() >= 1 && data.parameters.size() <= 15 && data.parameters[0] is map
+        && isNonEmptyStr(data.inspectorName, 100)
+        && (!('remarks' in data) || isOptStr(data.remarks, 300))
+        && isNonEmptyStr(data.inspectedDate, 20)
+        && (!('refType' in data) || isOptStr(data.refType, 40))
+        && (!('refId' in data) || isOptStr(data.refId, 128))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSalesOrder(data) {
+      return data.keys().hasAll(['orderNumber', 'customerId', 'customerName', 'customerStateCode', 'salesmanUid', 'salesmanName', 'items', 'subtotalPaisa', 'cgstPaisa', 'sgstPaisa', 'igstPaisa', 'totalTaxPaisa', 'totalAmountPaisa', 'status', 'orderDate', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['orderNumber', 'customerId', 'customerName', 'customerStateCode', 'salesmanUid', 'salesmanName', 'source', 'deliveryAddress', 'contactPhone', 'items', 'subtotalPaisa', 'cgstPaisa', 'sgstPaisa', 'igstPaisa', 'totalTaxPaisa', 'totalAmountPaisa', 'status', 'rejectionReason', 'linkedProductionRunId', 'allocatedBatches', 'notes', 'orderDate', 'createdAt', 'updatedAt'])
+        && isValidCode(data.orderNumber, 40)
+        && isValidId(data.customerId)
+        && isNonEmptyStr(data.customerName, 150)
+        && data.customerStateCode is string && data.customerStateCode.size() == 2
+        && isValidId(data.salesmanUid)
+        && isNonEmptyStr(data.salesmanName, 120)
+        && (!('source' in data) || data.source in ['merchant', 'buyer_portal'])
+        && (!('deliveryAddress' in data) || isOptStr(data.deliveryAddress, 300))
+        && (!('contactPhone' in data) || isOptStr(data.contactPhone, 30))
+        && data.items is list && data.items.size() >= 1 && data.items.size() <= 30 && data.items[0] is map
+        && data.subtotalPaisa is int && data.subtotalPaisa >= 0
+        && data.cgstPaisa is int && data.cgstPaisa >= 0
+        && data.sgstPaisa is int && data.sgstPaisa >= 0
+        && data.igstPaisa is int && data.igstPaisa >= 0
+        && data.totalTaxPaisa is int && data.totalTaxPaisa >= 0
+        && data.totalAmountPaisa is int && data.totalAmountPaisa >= 0
+        && data.status in ['pending', 'awaiting_approval', 'approved', 'confirmed', 'in_production', 'ready_for_dispatch', 'invoiced', 'dispatched', 'delivered', 'rejected', 'cancelled']
+        && (!('rejectionReason' in data) || isOptStr(data.rejectionReason, 240))
+        && (!('linkedProductionRunId' in data) || isOptStr(data.linkedProductionRunId, 128))
+        && (!('allocatedBatches' in data) || (data.allocatedBatches is list && data.allocatedBatches.size() <= 50))
+        && (!('notes' in data) || isOptStr(data.notes, 300))
+        && isNonEmptyStr(data.orderDate, 40)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInvoice(data) {
+      return data.keys().hasAll(['invoiceNumber', 'orderId', 'orderNumber', 'customerId', 'customerName', 'customerStateCode', 'companyStateCode', 'isInterState', 'items', 'subtotalPaisa', 'cgstPaisa', 'sgstPaisa', 'igstPaisa', 'totalTaxPaisa', 'totalAmountPaisa', 'paidAmountPaisa', 'balanceDuePaisa', 'paymentStatus', 'dispatchStatus', 'invoiceDate', 'dueDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['invoiceNumber', 'orderId', 'orderNumber', 'customerId', 'customerName', 'customerGstin', 'customerStateCode', 'companyStateCode', 'isInterState', 'items', 'subtotalPaisa', 'cgstPaisa', 'sgstPaisa', 'igstPaisa', 'totalTaxPaisa', 'totalAmountPaisa', 'paidAmountPaisa', 'balanceDuePaisa', 'paymentStatus', 'dispatchStatus', 'invoiceDate', 'dueDate', 'createdBy', 'createdAt', 'updatedAt'])
+        && isValidCode(data.invoiceNumber, 40)
+        && isValidId(data.orderId)
+        && isValidCode(data.orderNumber, 40)
+        && isValidId(data.customerId)
+        && isNonEmptyStr(data.customerName, 150)
+        && (!('customerGstin' in data) || isOptStr(data.customerGstin, 15))
+        && data.customerStateCode is string && data.customerStateCode.size() == 2
+        && data.companyStateCode is string && data.companyStateCode.size() == 2
+        && data.isInterState is bool
+        && data.items is list && data.items.size() >= 1 && data.items.size() <= 30 && data.items[0] is map
+        && data.subtotalPaisa is int && data.subtotalPaisa >= 0
+        && data.cgstPaisa is int && data.cgstPaisa >= 0
+        && data.sgstPaisa is int && data.sgstPaisa >= 0
+        && data.igstPaisa is int && data.igstPaisa >= 0
+        && data.totalTaxPaisa is int && data.totalTaxPaisa >= 0
+        && data.totalAmountPaisa is int && data.totalAmountPaisa >= 0
+        && data.paidAmountPaisa is int && data.paidAmountPaisa >= 0
+        && data.balanceDuePaisa is int && data.balanceDuePaisa >= 0
+        && data.paymentStatus in ['unpaid', 'partial', 'paid']
+        && data.dispatchStatus in ['pending', 'dispatched']
+        && isNonEmptyStr(data.invoiceDate, 40)
+        && isNonEmptyStr(data.dueDate, 40)
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDispatch(data) {
+      return data.keys().hasAll(['dispatchNumber', 'invoiceId', 'invoiceNumber', 'orderId', 'orderNumber', 'customerId', 'customerName', 'transporterName', 'dispatchedItems', 'status', 'dispatchedBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['dispatchNumber', 'invoiceId', 'invoiceNumber', 'orderId', 'orderNumber', 'customerId', 'customerName', 'transporterName', 'vehicleNumber', 'lrNumber', 'dispatchedItems', 'status', 'dispatchedBy', 'dispatchedAt', 'deliveredAt', 'createdAt', 'updatedAt'])
+        && isValidCode(data.dispatchNumber, 40)
+        && isValidId(data.invoiceId)
+        && isValidCode(data.invoiceNumber, 40)
+        && isValidId(data.orderId)
+        && isValidCode(data.orderNumber, 40)
+        && isValidId(data.customerId)
+        && isNonEmptyStr(data.customerName, 150)
+        && isNonEmptyStr(data.transporterName, 120)
+        && (!('vehicleNumber' in data) || isOptStr(data.vehicleNumber, 30))
+        && (!('lrNumber' in data) || isOptStr(data.lrNumber, 50))
+        && data.dispatchedItems is list && data.dispatchedItems.size() >= 1 && data.dispatchedItems.size() <= 30 && data.dispatchedItems[0] is map
+        && data.status in ['packed', 'dispatched', 'delivered']
+        && isValidId(data.dispatchedBy)
+        && (!('dispatchedAt' in data) || isOptStr(data.dispatchedAt, 60))
+        && (!('deliveredAt' in data) || isOptStr(data.deliveredAt, 60))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll(['receiptNumber', 'invoiceId', 'invoiceNumber', 'customerId', 'customerName', 'amountPaisa', 'paymentMode', 'paymentDate', 'recordedBy', 'createdAt'])
+        && data.keys().hasOnly(['receiptNumber', 'invoiceId', 'invoiceNumber', 'customerId', 'customerName', 'amountPaisa', 'paymentMode', 'referenceNumber', 'paymentDate', 'notes', 'recordedBy', 'createdAt'])
+        && isValidCode(data.receiptNumber, 40)
+        && isValidId(data.invoiceId)
+        && isValidCode(data.invoiceNumber, 40)
+        && isValidId(data.customerId)
+        && isNonEmptyStr(data.customerName, 150)
+        && data.amountPaisa is int && data.amountPaisa > 0
+        && data.paymentMode in ['NEFT', 'RTGS', 'UPI', 'Cheque', 'Cash']
+        && (!('referenceNumber' in data) || isOptStr(data.referenceNumber, 80))
+        && isNonEmptyStr(data.paymentDate, 40)
+        && (!('notes' in data) || isOptStr(data.notes, 240))
+        && isValidId(data.recordedBy)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidStockMovement(data) {
+      return data.keys().hasAll(['itemType', 'itemId', 'itemCode', 'itemName', 'movementType', 'unit', 'beforeQty', 'changeQty', 'afterQty', 'unitCostPaisa', 'totalValuePaisa', 'refType', 'refId', 'refNumber', 'actorUid', 'createdAt'])
+        && data.keys().hasOnly(['itemType', 'itemId', 'itemCode', 'itemName', 'movementType', 'unit', 'beforeQty', 'changeQty', 'afterQty', 'unitCostPaisa', 'totalValuePaisa', 'refType', 'refId', 'refNumber', 'batchNumber', 'actorUid', 'actorName', 'createdAt'])
+        && data.itemType in ['raw_material', 'packaging', 'finished_good']
+        && isValidId(data.itemId)
+        && isNonEmptyStr(data.itemCode, 40)
+        && isNonEmptyStr(data.itemName, 150)
+        && data.movementType in ['PURCHASE_IN', 'PRODUCTION_CONSUME', 'PRODUCTION_OUT', 'PRODUCTION_WASTAGE', 'DISPATCH_OUT', 'QC_REJECT', 'ADJUSTMENT']
+        && isNonEmptyStr(data.unit, 24)
+        && data.beforeQty is number
+        && data.changeQty is number
+        && data.afterQty is number && data.afterQty >= 0
+        && data.unitCostPaisa is int && data.unitCostPaisa >= 0
+        && data.totalValuePaisa is int && data.totalValuePaisa >= 0
+        && isNonEmptyStr(data.refType, 40)
+        && isValidId(data.refId)
+        && isNonEmptyStr(data.refNumber, 60)
+        && (!('batchNumber' in data) || isOptStr(data.batchNumber, 50))
+        && isValidId(data.actorUid)
+        && (!('actorName' in data) || isOptStr(data.actorName, 120))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'actorEmail', 'actorRole', 'action', 'entityType', 'entityId', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorEmail', 'actorRole', 'action', 'entityType', 'entityId', 'summary', 'createdAt'])
+        && isValidId(data.actorUid)
+        && isNonEmptyStr(data.actorEmail, 200)
+        && data.actorRole in ['owner', 'admin', 'salesman', 'production_supervisor', 'accountant', 'buyer']
+        && isNonEmptyStr(data.action, 80)
+        && isNonEmptyStr(data.entityType, 60)
+        && isValidId(data.entityId)
+        && isNonEmptyStr(data.summary, 300)
+        && data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection Match Blocks
+    // =========================================================================
+
+    // Users (PII Isolated: strictly authenticated owner/self only — never accessible in Demo Mode)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdminOrOwner());
+      allow list: if isSignedIn() && (request.auth.token.email == 'nbpriya2006@gmail.com' || resource.data.uid == request.auth.uid || isAdminOrOwner());
+      allow create: if isSignedIn() && isValidId(userId) && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isBootstrapOwner() && request.auth.uid == userId && incoming().uid == userId && incoming().role == 'owner' && incoming().status == 'active')
+          || (request.auth.uid == userId && incoming().uid == userId && incoming().role == 'salesman' && incoming().status == 'active')
+          || (isOwner() && incoming().uid == userId)
+        );
+      allow update: if isSignedIn() && isValidId(userId) && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'status', 'phone', 'department', 'updatedAt']))
+          || (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'department', 'updatedAt']))
+        );
+      allow delete: if false;
+    }
+
+    // Settings
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(settingId) && canMutateWorkspace() && isValidCompanySetting(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(settingId) && canMutateWorkspace() && isValidCompanySetting(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['companyName', 'legalName', 'gstin', 'stateCode', 'stateName', 'address', 'phone', 'email', 'invoicePrefix', 'orderPrefix', 'batchPrefix', 'updatedBy', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Customers
+    match /customers/{customerId} {
+      allow get: if isValidId(customerId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(customerId) && canMutateWorkspace() && isValidCustomer(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(customerId) && canMutateWorkspace() && isValidCustomer(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['businessName', 'contactName', 'phone', 'email', 'gstin', 'stateCode', 'stateName', 'city', 'address', 'creditLimitPaisa', 'outstandingPaisa', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Products
+    match /products/{productId} {
+      allow get: if isValidId(productId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(productId) && canMutateWorkspace() && isValidProduct(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(productId) && canMutateWorkspace() && isValidProduct(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'hsnCode', 'unit', 'packSize', 'gstBps', 'sellingPricePaisa', 'standardCostPaisa', 'currentStock', 'reorderLevel', 'description', 'imageUrl', 'shelfLifeDays', 'storageTemp', 'weightGrams', 'fssaiLicense', 'allergens', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Raw Materials
+    match /raw_materials/{materialId} {
+      allow get: if isValidId(materialId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(materialId) && canMutateWorkspace() && isValidRawMaterial(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(materialId) && canMutateWorkspace() && isValidRawMaterial(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'unit', 'currentStock', 'reorderLevel', 'costPerUnitPaisa', 'supplierName', 'shelfLifeDays', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Packaging Materials
+    match /packaging_materials/{packagingId} {
+      allow get: if isValidId(packagingId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(packagingId) && canMutateWorkspace() && isValidPackagingMaterial(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(packagingId) && canMutateWorkspace() && isValidPackagingMaterial(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'materialType', 'unit', 'currentStock', 'reorderLevel', 'costPerUnitPaisa', 'supplierName', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Suppliers
+    match /suppliers/{supplierId} {
+      allow get: if isValidId(supplierId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(supplierId) && canMutateWorkspace() && isValidSupplier(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(supplierId) && canMutateWorkspace() && isValidSupplier(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'contactPerson', 'phone', 'email', 'gstin', 'stateCode', 'stateName', 'address', 'category', 'leadTimeDays', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Purchase Requests
+    match /purchase_requests/{prId} {
+      allow get: if isValidId(prId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(prId) && canMutateWorkspace() && isValidPurchaseRequest(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(prId) && canMutateWorkspace() && isValidPurchaseRequest(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'linkedPoId', 'notes', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Bills of Materials
+    match /boms/{bomId} {
+      allow get: if isValidId(bomId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(bomId) && canMutateWorkspace() && isValidBom(incoming())
+        && exists(/databases/$(database)/documents/products/$(incoming().productId))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(bomId) && canMutateWorkspace() && isValidBom(incoming())
+        && incoming().productId == existing().productId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['batchYieldQty', 'batchUnit', 'standardLaborCostPaisa', 'standardOverheadPaisa', 'rawMaterialItems', 'packagingItems', 'notes', 'updatedBy', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Purchases & GRNs
+    match /purchases/{purchaseId} {
+      allow get: if isValidId(purchaseId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(purchaseId) && canMutateWorkspace() && isValidPurchase(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(purchaseId) && canMutateWorkspace() && isValidPurchase(incoming())
+        && existing().status != 'received'
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'grnNumber', 'batchNumber', 'mfgDate', 'expiryDate', 'receivedBy', 'receivedAt', 'invoiceRef', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Production Runs
+    match /production_runs/{runId} {
+      allow get: if isValidId(runId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(runId) && canMutateWorkspace() && isValidProductionRun(incoming())
+        && exists(/databases/$(database)/documents/products/$(incoming().productId))
+        && exists(/databases/$(database)/documents/boms/$(incoming().bomId))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(runId) && canMutateWorkspace() && isValidProductionRun(incoming())
+        && incoming().productId == existing().productId
+        && incoming().bomId == existing().bomId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['actualOutputQty', 'wastageQty', 'wastageReason', 'rawMaterialsConsumed', 'packagingConsumed', 'actualMaterialCostPaisa', 'actualTotalCostPaisa', 'variancePaisa', 'status', 'wipStage', 'mfgDate', 'expiryDate', 'qcStatus', 'startedAt', 'completedAt', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Inventory Batches (Lot / Expiry / FEFO)
+    match /inventory_batches/{batchId} {
+      allow get: if isValidId(batchId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(batchId) && canMutateWorkspace() && isValidInventoryBatch(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(batchId) && canMutateWorkspace() && isValidInventoryBatch(incoming())
+        && incoming().itemId == existing().itemId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['remainingQty', 'qcStatus', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Quality Control Inspections (Append-Only)
+    match /qc_inspections/{qcId} {
+      allow get: if isValidId(qcId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(qcId) && canMutateWorkspace() && isValidQcInspection(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Sales Orders (Authenticated Salesmen remain scoped to ownUid)
+    match /sales_orders/{orderId} {
+      allow get: if isValidId(orderId) && canAccessWorkspace();
+      allow list: if (request.auth == null) || isAdminOrOwner() || hasAnyRole(['accountant', 'production_supervisor']) || (hasAnyRole(['salesman']) && resource.data.salesmanUid == request.auth.uid) || (isSignedIn() && !userDocExists());
+      allow create: if isValidId(orderId) && canMutateWorkspace() && isValidSalesOrder(incoming())
+        && exists(/databases/$(database)/documents/customers/$(incoming().customerId))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(orderId) && canMutateWorkspace() && isValidSalesOrder(incoming())
+        && existing().status != 'cancelled'
+        && existing().status != 'rejected'
+        && incoming().customerId == existing().customerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'linkedProductionRunId', 'allocatedBatches', 'notes', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // GST Invoices
+    match /invoices/{invoiceId} {
+      allow get: if isValidId(invoiceId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(invoiceId) && canMutateWorkspace() && isValidInvoice(incoming())
+        && exists(/databases/$(database)/documents/sales_orders/$(incoming().orderId))
+        && exists(/databases/$(database)/documents/customers/$(incoming().customerId))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(invoiceId) && canMutateWorkspace() && isValidInvoice(incoming())
+        && incoming().orderId == existing().orderId
+        && incoming().customerId == existing().customerId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['paidAmountPaisa', 'balanceDuePaisa', 'paymentStatus', 'dispatchStatus', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Dispatches
+    match /dispatches/{dispatchId} {
+      allow get: if isValidId(dispatchId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(dispatchId) && canMutateWorkspace() && isValidDispatch(incoming())
+        && exists(/databases/$(database)/documents/invoices/$(incoming().invoiceId))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(dispatchId) && canMutateWorkspace() && isValidDispatch(incoming())
+        && existing().status != 'delivered'
+        && incoming().invoiceId == existing().invoiceId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'vehicleNumber', 'lrNumber', 'dispatchedAt', 'deliveredAt', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Payments (Append-Only)
+    match /payments/{paymentId} {
+      allow get: if isValidId(paymentId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(paymentId) && canMutateWorkspace() && isValidPayment(incoming())
+        && exists(/databases/$(database)/documents/invoices/$(incoming().invoiceId))
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Traceable Stock Movement Ledger (Strictly Append-Only)
+    match /stock_movements/{movementId} {
+      allow get: if isValidId(movementId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(movementId) && canMutateWorkspace() && isValidStockMovement(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Audit Logs (Strictly Append-Only)
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId) && canAccessWorkspace();
+      allow list: if canAccessWorkspace();
+      allow create: if isValidId(logId) && canMutateWorkspace() && isValidAuditLog(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

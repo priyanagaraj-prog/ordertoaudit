@@ -1,0 +1,98 @@
+/**
+ * Firestore Security Rules Verification Specification (Dirty Dozen Adversarial Cases)
+ * Documents the 12 mandatory security invariants enforced by firestore.rules.
+ */
+export const DIRTY_DOZEN_SECURITY_CASES = [
+  {
+    id: 1,
+    name: 'Self-Role Escalation',
+    target: 'users/{uid}',
+    payload: { uid: 'attacker', email: 'a@test.com', displayName: 'Attacker', role: 'owner', status: 'active' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 2,
+    name: 'Shadow Field Injection',
+    target: 'customers/{id}',
+    payload: { code: 'C01', businessName: 'Test', isVerifiedByBypass: true },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 3,
+    name: 'Unverified Email Spoofing',
+    target: 'settings/company',
+    authContext: { email: 'nbpriya2006@gmail.com', email_verified: false },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 4,
+    name: 'Accountant Mutation Attempt',
+    target: 'invoices/{id}',
+    actorRole: 'accountant',
+    operation: 'update',
+    payload: { paymentStatus: 'paid' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 5,
+    name: 'Salesman Order Hijacking',
+    target: 'sales_orders/{id}',
+    actorRole: 'salesman',
+    payload: { salesmanUid: 'another_salesman_uid' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 6,
+    name: 'Audit Log Tampering',
+    target: 'audit_logs/{id}',
+    actorRole: 'owner',
+    operation: 'delete',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 7,
+    name: 'Stock Ledger Tampering',
+    target: 'stock_movements/{id}',
+    actorRole: 'production_supervisor',
+    operation: 'update',
+    payload: { changeQty: 9999 },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 8,
+    name: 'Floating-Point Paisa Poisoning',
+    target: 'products/{id}',
+    payload: { sellingPricePaisa: 120.55 },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 9,
+    name: 'Resource Exhaustion / Oversized ID',
+    target: 'customers/' + 'A'.repeat(256),
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 10,
+    name: 'Terminal State Bypass on Completed Production Run',
+    target: 'production_runs/{completedId}',
+    actorRole: 'production_supervisor',
+    operation: 'update',
+    payload: { actualOutputQty: 500 },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 11,
+    name: 'PII Cross-User Read',
+    target: 'users/other_uid',
+    actorRole: 'salesman',
+    operation: 'get',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 12,
+    name: 'Client-Forged Timestamp',
+    target: 'sales_orders/{id}',
+    payload: { createdAt: '2020-01-01T00:00:00Z' },
+    expected: 'PERMISSION_DENIED',
+  },
+] as const;
